@@ -18,6 +18,7 @@ import (
 	"nocalhost/pkg/nhctl/clientgoutils"
 	"nocalhost/pkg/nhctl/log"
 	"path/filepath"
+	"strings"
 )
 
 func initApp(appName string) {
@@ -91,14 +92,20 @@ func initService(svcName string, svcType string) *controller.Controller {
 	if svcName == "" {
 		log.Fatal("please use -d to specify a k8s workload")
 	}
+	if strings.ToLower(svcType) == "statefulset" || strings.ToLower(svcType) == "statefulsets" {
+		svcType = "dragon.io/v1alpha1/statefulsets"
+	}
 	return nocalhostApp.Controller(svcName, base.SvcTypeOf(svcType))
 }
 
 func checkIfSvcExist(svcName string, svcType string) {
+	// svcType 是workload的名字 如 statefulset
+	// svcName 是 资源的名字 如 statefulset下的某个资源
+	// svcName = sk-test20-sts svcType = "dragon.io/v1alpha1/statefulsets
 	nocalhostSvc = initService(svcName, svcType)
 	_, err := nocalhostSvc.CheckIfExist()
 	if err != nil {
-		log.FatalE(err, fmt.Sprintf("Resource: %s-%s not found!", svcType, svcName))
+		log.FatalE(err, fmt.Sprintf("Resource: %s-%s not found! in namespace:%s", svcType, svcName, nocalhostSvc.NameSpace))
 	}
 	log.AddField("SVC", svcName)
 }

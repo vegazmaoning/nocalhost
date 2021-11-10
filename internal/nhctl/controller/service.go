@@ -54,7 +54,8 @@ func (c *Controller) CheckIfExist() (bool, error) {
 	case base.Deployment:
 		_, err = c.Client.GetDeployment(c.Name)
 	case base.StatefulSet:
-		_, err = c.Client.GetStatefulSet(c.Name)
+		//_, err = c.Client.GetStatefulSet(c.Name)
+		_, err = c.Client.GetDragonStatefulSet(c.Name)
 	case base.DaemonSet:
 		_, err = c.Client.GetDaemonSet(c.Name)
 	case base.Job:
@@ -63,6 +64,8 @@ func (c *Controller) CheckIfExist() (bool, error) {
 		_, err = c.Client.GetCronJobs(c.Name)
 	case base.Pod:
 		_, err = c.Client.GetPod(c.Name)
+	case base.DragonStatefulset:
+		_, err = c.Client.GetDragonStatefulSet(c.Name)
 	default:
 		return false, errors.New("unsupported controller type")
 	}

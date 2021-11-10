@@ -19,7 +19,7 @@ import (
 
 const (
 	// nocalhost-docker.pkg.coding.net/nocalhost/public/minideb:latest"
-	DefaultDevImage = ""
+	DefaultDevImage = "nocalhost-docker.pkg.coding.net/nocalhost/dev-images/golang"
 	DefaultWorkDir  = "/home/nocalhost-dev"
 )
 

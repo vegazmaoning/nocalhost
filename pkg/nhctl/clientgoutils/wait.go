@@ -7,6 +7,10 @@ package clientgoutils
 
 import (
 	"fmt"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic/dynamicinformer"
 	"time"
 
 	"github.com/pkg/errors"
@@ -93,9 +97,53 @@ func (c *ClientGoUtils) WaitForResourceReady(
 			time.Sleep(time.Second * 2)
 		}
 	}
-	return err
 }
 
+func (c *ClientGoUtils) WaitForCustomResourceReady(gvr schema.GroupVersionResource, name string, isReady func(object runtime.Object) (bool, error)) error {
+	stop := make(chan struct{})
+	defer close(stop)
+	exit := make(chan bool)
+	f, err := fields.ParseSelector(fmt.Sprintf("metadata.name=%s", name))
+	controller := dynamicinformer.NewFilteredDynamicSharedInformerFactory(
+		c.dynamicClient, 5*time.Second, c.namespace, func(options *metav1.ListOptions) {
+		options.FieldSelector = f.String()
+		}).
+		ForResource(gvr).
+		Informer()
+	eventHandler := cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+		},
+		DeleteFunc: func(obj interface{}) {
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			obj, ok := newObj.(runtime.Object)
+			if !ok {
+				err = errors.New("can not get a runtime object")
+				exit <- true
+				return
+			}
+			b, err2 := isReady(obj)
+			if err2 != nil || b {
+				err = err2
+				exit <- true
+				return
+			}
+		},
+	}
+	controller.AddEventHandler(eventHandler)
+	go controller.Run(stop)
+	for {
+		select {
+		case <-c.ctx.Done():
+			return err
+		case <-exit:
+			return err
+		default:
+			time.Sleep(time.Second * 2)
+		}
+	}
+	return err
+}
 func (c *ClientGoUtils) WaitDeploymentToBeReady(name string) error {
 	return c.WaitForResourceReady(DeploymentType, name, isDeploymentReady)
 }
@@ -135,6 +183,14 @@ func isStatefulSetReady(obj runtime.Object) (bool, error) {
 		return true, nil
 	}
 	return false, nil
+}
+
+func isDragonStatefulSetReady(obj runtime.Object) (bool, error) {
+	us, ok := obj.(*unstructured.Unstructured)
+	if !ok {
+		return true, errors.Errorf("expected a *StatefulSet, got %T", obj)
+	}
+	return us.Object["status"].(map[string]interface{})["readyReplicas"] == 1, nil
 }
 
 func (c *ClientGoUtils) WaitJobToBeReady(name, format string) error {

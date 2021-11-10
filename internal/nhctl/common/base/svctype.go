@@ -23,6 +23,7 @@ const (
 	Pod         SvcType = "pod"
 
 	DEPLOYMENT SvcType = "D"
+	DragonStatefulset SvcType = "dragon.io/v1alpha1/statefulsets"
 )
 
 func SvcTypeOf(svcType string) SvcType {
@@ -33,7 +34,7 @@ func SvcTypeOf(svcType string) SvcType {
 		case strings.ToLower(string(Deployment)):
 			serviceType = Deployment
 		case strings.ToLower(string(StatefulSet)):
-			serviceType = StatefulSet
+			serviceType = DragonStatefulset
 		case strings.ToLower(string(DaemonSet)):
 			serviceType = DaemonSet
 		case strings.ToLower(string(Job)):
@@ -42,6 +43,8 @@ func SvcTypeOf(svcType string) SvcType {
 			serviceType = CronJob
 		case strings.ToLower(string(Pod)):
 			serviceType = Pod
+		case "dragon.io/v1alpha1/statefulsets":
+			serviceType = DragonStatefulset
 		default:
 			log.FatalE(errors.New(fmt.Sprintf("Unsupported SvcType %s", svcType)), "")
 		}

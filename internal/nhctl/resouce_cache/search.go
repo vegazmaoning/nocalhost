@@ -12,12 +12,12 @@ import (
 	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/pkg/errors"
 	authorizationv1 "k8s.io/api/authorization/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/informers"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/cache"
@@ -46,7 +46,7 @@ var clusterMapLock sync.Mutex
 
 type Searcher struct {
 	kubeconfig      []byte
-	informerFactory informers.SharedInformerFactory
+	informerFactory dynamicinformer.DynamicSharedInformerFactory
 	// [string]*meta.RESTMapping
 	supportSchema *sync.Map
 	mapper        meta.RESTMapper
@@ -69,11 +69,21 @@ func getSupportedSchema(c *kubernetes.Clientset, mapper meta.RESTMapper) (*sync.
 	}
 	nameToMapping := make(map[string]*meta.RESTMapping)
 	for _, resourceList := range apiResourceLists {
+		//if resourceList.GroupVersion != "dragon.io/v1alpha1" {
+		//	continue
+		//}
 		for _, resource := range resourceList.APIResources {
-			if resourceNeeded[resource.Name] == "" {
+			// key -> resource.GroupVersion + "/resource.Name"
+			var key string
+			if resourceList.GroupVersion == "dragon.io/v1alpha1"{
+				key = resourceList.GroupVersion + "/" + resource.Name
+			} else {
+				key = resource.Name
+			}
+			if resourceNeeded[key] == "" {
 				continue
 			}
-			if nameToMapping[resource.Name] != nil {
+			if nameToMapping[key] != nil {
 				log.Logf("Already exist resource type: %s, restMapping: %v",
 					resource.Name, nameToMapping[resource.Name])
 				continue
@@ -85,9 +95,16 @@ func getSupportedSchema(c *kubernetes.Clientset, mapper meta.RESTMapper) (*sync.
 					log.Tracef("RESTMapping is nil, gvk is %v", gvk)
 					continue
 				}
+				var kindKey string
+				if resourceList.GroupVersion == "dragon.io/v1alpha1" {
+					kindKey = resourceList.GroupVersion + "/" + resource.Kind
+				} else {
+					kindKey = resource.Name
+				}
+				nameToMapping[key] = mapping
+				nameToMapping[kindKey] = mapping
+				//nameToMapping[resourceList.GroupVersion + "/" + strings.ToLower(resource.Kind)] = mapping
 				nameToMapping[resource.Name] = mapping
-				nameToMapping[resource.Kind] = mapping
-				nameToMapping[strings.ToLower(resource.Kind)] = mapping
 				for _, name := range resource.ShortNames {
 					nameToMapping[name] = mapping
 				}
@@ -156,17 +173,24 @@ func initSearcher(kubeconfigBytes []byte, namespace string) (*Searcher, error) {
 		return nil, err1
 	}
 
-	var informerFactory informers.SharedInformerFactory
+	dynamicClient, err := dynamic.NewForConfig(config)
+	var informerFactory dynamicinformer.DynamicSharedInformerFactory
 
 	if isClusterAdmin(clientset) {
-		informerFactory = informers.NewSharedInformerFactory(clientset, time.Second*5)
+		informerFactory = dynamicinformer.NewFilteredDynamicSharedInformerFactory(
+			dynamicClient,
+			time.Second * 5,
+			"",
+			nil )
 		clusterMapLock.Lock()
 		clusterMap[string(kubeconfigBytes)] = true
 		clusterMapLock.Unlock()
 	} else {
-		informerFactory = informers.NewSharedInformerFactoryWithOptions(
-			clientset, time.Second*5, informers.WithNamespace(namespace),
-		)
+		informerFactory = dynamicinformer.NewFilteredDynamicSharedInformerFactory(
+			dynamicClient,
+			time.Second*5,
+			namespace,
+			nil)
 	}
 	gr, err2 := restmapper.GetAPIGroupResources(clientset)
 	if err2 != nil {
@@ -181,16 +205,7 @@ func initSearcher(kubeconfigBytes []byte, namespace string) (*Searcher, error) {
 	restMappingList.Range(func(key, value interface{}) bool {
 		if value != nil {
 			if restMapping, convert := value.(*meta.RESTMapping); convert && restMapping != nil {
-				if _, err = informerFactory.ForResource(restMapping.Resource); err != nil {
-					if k8serrors.IsForbidden(err) {
-						log.Warnf("user account is forbidden to list resource: %v, ignored", restMapping.Resource)
-					} else {
-						log.Warnf(
-							"Can't create informer for resource: %v, error info: %v, ignored",
-							restMapping.Resource, err.Error(),
-						)
-					}
-				}
+				informerFactory.ForResource(restMapping.Resource)
 			}
 		}
 		return true
@@ -395,11 +410,12 @@ func (c *criteria) Query() (data []interface{}, e error) {
 		if err := recover(); err != nil {
 			e = err.(error)
 		}
-		if mapping, errs := c.search.GetRestMapping(c.resourceType); errs == nil {
-			for _, d := range data {
-				d.(runtime.Object).GetObjectKind().SetGroupVersionKind(mapping.GroupVersionKind)
-			}
-		}
+		// by zxy
+		//if mapping, errs := c.search.GetRestMapping(c.resourceType); errs == nil {
+		//	for _, d := range data {
+		//		d.(runtime.Object).GetObjectKind().SetGroupVersionKind(mapping.GroupVersionKind)
+		//	}
+		//}
 	}()
 
 	if c.search == nil {
@@ -409,19 +425,12 @@ func (c *criteria) Query() (data []interface{}, e error) {
 		return nil, errors.New("resource type and kind should not be null at the same time")
 	}
 	var informer cache.SharedIndexInformer
-	if c.kind != nil {
-		informer = c.search.informerFactory.InformerFor(c.kind, nil)
-	} else {
-		mapping, err := c.search.GetRestMapping(c.resourceType)
-		if err != nil {
+	mapping, err := c.search.GetRestMapping(c.resourceType)
+	if err != nil {
 			return nil, errors.Wrapf(err, "not support resource type: %v", c.resourceType)
 		}
-		genericInformer, err := c.search.informerFactory.ForResource(mapping.Resource)
-		if err != nil {
-			return nil, errors.Wrapf(err, "get informer failed for resource type: %v", c.resourceType)
-		}
-		informer = genericInformer.Informer()
-	}
+	genericInformer := c.search.informerFactory.ForResource(mapping.Resource)
+	informer = genericInformer.Informer()
 	if informer == nil {
 		return nil, errors.New("create informer failed, please check your code")
 	}
@@ -459,6 +468,7 @@ func (c *criteria) Query() (data []interface{}, e error) {
 		}
 		return
 	}
+	//filter := newFilter(informer.GetIndexer().List())
 	return newFilter(informer.GetIndexer().List()).
 		namespace(c.ns).
 		appName(c.availableAppName, c.appName).

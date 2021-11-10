@@ -24,6 +24,8 @@ func (c *Controller) BuildPodController() pod_controller.PodController {
 		return &CronJobController{Controller: c}
 	case base.Pod:
 		return &RawPodController{Controller: c}
+	case base.DragonStatefulset:
+		return &DragonStatefulSetController{Controller: c}
 	}
 	return nil
 }

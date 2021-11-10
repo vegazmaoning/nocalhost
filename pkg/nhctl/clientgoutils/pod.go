@@ -79,3 +79,18 @@ func (c *ClientGoUtils) UpdatePod(pod *corev1.Pod) (*corev1.Pod, error) {
 	pod2, err := c.GetPodClient().Update(c.ctx, pod, metav1.UpdateOptions{})
 	return pod2, errors.Wrap(err, "")
 }
+
+func (c *ClientGoUtils) ListPodByDragonStatefulset(name string) (*corev1.PodList, error) {
+	dsts, err := c.dynamicClient.Resource(dsts).Namespace(c.namespace).Get(c.ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return nil, errors.Wrap(err, "")
+	}
+	set := labels.Set(dsts.GetLabels())
+	pods, err := c.ClientSet.CoreV1().Pods(c.namespace).List(
+		c.ctx, metav1.ListOptions{LabelSelector: set.AsSelector().String()},
+	)
+	if err != nil {
+		return nil, errors.Wrap(err, "")
+	}
+	return pods, nil
+}

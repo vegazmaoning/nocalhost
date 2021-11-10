@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"k8s.io/api/batch/v1beta1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/util/flowcontrol"
@@ -46,6 +47,14 @@ import (
 	"k8s.io/client-go/transport/spdy"
 
 	"nocalhost/pkg/nhctl/log"
+)
+
+var (
+	dsts = schema.GroupVersionResource{
+		Group: "dragon.io",
+		Version: "v1alpha1",
+		Resource: "statefulsets",
+	}
 )
 
 type ClientGoUtils struct {
@@ -266,6 +275,11 @@ func (c *ClientGoUtils) GetDaemonSet(name string) (*v1.DaemonSet, error) {
 func (c *ClientGoUtils) GetStatefulSet(name string) (*v1.StatefulSet, error) {
 	dep, err := c.GetStatefulSetClient().Get(c.ctx, name, metav1.GetOptions{})
 	return dep, errors.Wrap(err, "")
+}
+
+func (c *ClientGoUtils) GetDragonStatefulSet(name string) (*unstructured.Unstructured, error) {
+	dep, err := c.dynamicClient.Resource(dsts).Namespace(c.namespace).Get(c.ctx, name, metav1.GetOptions{})
+	return dep, err
 }
 
 func (c *ClientGoUtils) GetJobs(name string) (*batchv1.Job, error) {

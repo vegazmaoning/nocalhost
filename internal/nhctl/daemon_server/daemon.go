@@ -161,7 +161,7 @@ func StartDaemon(isSudoUser bool, v string, c string) error {
 						log.LogE(errors.Wrap(err, "Failed to read data from connection"))
 						return
 					}
-				case <-time.After(30 * time.Second):
+				case <-time.After(30000 * time.Second):
 					log.LogE(errors.New("Read data from connection timeout after 30s"))
 					return
 				}
@@ -238,7 +238,6 @@ func handleCommand(conn net.Conn, bys []byte, cmdType command.DaemonCommandType,
 		)
 		return
 	}
-
 	switch cmdType {
 	case command.StartPortForward:
 		err = Process(

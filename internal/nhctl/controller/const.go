@@ -5,7 +5,9 @@
 
 package controller
 
-import "nocalhost/internal/nhctl/profile"
+import (
+	"nocalhost/internal/nhctl/profile"
+)
 
 const (
 //DevImageRevisionAnnotationKey            = "nhctl.dev.image.revision"

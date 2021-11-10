@@ -74,9 +74,9 @@ func NewDaemonClient(isSudoUser bool) (*DaemonClient, error) {
 		client.daemonServerListenPort = daemon_common.DefaultDaemonPort
 	}
 
-	if err = startDaemonServerIfNotRunning(isSudoUser, client.daemonServerListenPort); err != nil {
-		return nil, err
-	}
+	//if err = startDaemonServerIfNotRunning(isSudoUser, client.daemonServerListenPort); err != nil {
+	//	return nil, err
+	//}
 
 	// Check Server's version
 	daemonServerInfo, err := client.SendGetDaemonServerInfoCommand()
@@ -453,7 +453,7 @@ func (d *DaemonClient) sendAndWaitForResponse(req []byte, resp interface{}) erro
 		if err != nil {
 			return errors.Wrap(err, fmt.Sprintf("%s failed to get response from daemon", baseCmd.CommandType))
 		}
-	case <-time.After(30 * time.Second):
+	case <-time.After(30000 * time.Second):
 		return errors.New(fmt.Sprintf("%s waited response timeout after 30s", baseCmd.CommandType))
 
 	}

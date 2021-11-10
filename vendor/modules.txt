@@ -228,7 +228,7 @@ github.com/matttproud/golang_protobuf_extensions/pbutil
 github.com/mitchellh/go-ps
 # github.com/mitchellh/go-wordwrap v1.0.0
 github.com/mitchellh/go-wordwrap
-# github.com/mitchellh/mapstructure v1.3.2
+# github.com/mitchellh/mapstructure v1.4.2
 ## explicit
 github.com/mitchellh/mapstructure
 # github.com/moby/term v0.0.0-20200312100748-672ec06f55cd

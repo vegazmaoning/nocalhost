@@ -11,6 +11,8 @@ import (
 	"io/ioutil"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/clientcmd"
 	"nocalhost/internal/nhctl/appmeta"
 	"nocalhost/internal/nhctl/appmeta_manager"
@@ -208,8 +210,15 @@ func HandleGetResourceInfoRequest(request *command.GetResourceInfoCommand) inter
 		// resource namespace filter status is active
 		availableData := make([]interface{}, 0, 0)
 		for _, datum := range data {
-			if datum.(*v1.Namespace).Status.Phase == v1.NamespaceActive {
-				availableData = append(availableData, datum)
+			fmt.Sprintf("")
+			d := datum.(*unstructured.Unstructured)
+			var namespace v1.Namespace
+			err := runtime.DefaultUnstructuredConverter.FromUnstructured(d.UnstructuredContent(), &namespace)
+			if err != nil {
+				fmt.Println(err)
+			}
+			if namespace.Status.Phase == v1.NamespaceActive {
+				availableData = append(availableData, namespace)
 			}
 		}
 		if err != nil || len(availableData) == 0 {
@@ -333,7 +342,9 @@ func getApp(name []string, namespace, appName, nid string, search *resouce_cache
 		resources := make([]item.Resource, 0, len(entry.V))
 		for _, resource := range entry.V {
 			resourceList, err := search.Criteria().
+				// resource such as deployment, statefulset and so on
 				ResourceType(resource).
+				// appName = default.application
 				AppName(appName).
 				AppNameNotIn(name...).
 				Namespace(namespace).
@@ -430,6 +441,7 @@ func GetAllApplicationWithDefaultApp(namespace, kubeconfigPath string) []*appmet
 			break
 		}
 	}
+	// 这里是default.application的由来
 	if !foundDefaultApp {
 		applicationMetaList = append(
 			applicationMetaList, appmeta.FakeAppMeta(namespace, _const.DefaultNocalhostApplication),

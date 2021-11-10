@@ -35,7 +35,7 @@ require (
 	github.com/mattn/go-sqlite3 v2.0.1+incompatible // indirect
 	github.com/mattn/psutil v0.0.0-20170126005127-e6c88f1e9be6
 	github.com/mitchellh/go-ps v1.0.0
-	github.com/mitchellh/mapstructure v1.3.2 // indirect
+	github.com/mitchellh/mapstructure v1.4.2
 	github.com/moby/term v0.0.0-20200312100748-672ec06f55cd
 	github.com/muesli/cache2go v0.0.0-20210519043705-f6c4b2d7bc5d
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
